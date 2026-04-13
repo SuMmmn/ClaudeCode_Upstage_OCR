@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from './store/ToastContext'
 import Header from './components/layout/Header'
@@ -9,12 +10,14 @@ import ExpenseDetail from './pages/ExpenseDetail'
 import Stats from './pages/Stats'
 
 function Layout({ children }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <Header onToggleSidebar={() => setSidebarOpen((o) => !o)} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
           {children}
         </main>
       </div>

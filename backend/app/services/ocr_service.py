@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import logging
+import os
 import re
 from datetime import date
 
@@ -9,6 +11,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_upstage import ChatUpstage, UpstageDocumentParseLoader
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 CATEGORIES = ["식료품", "외식", "쇼핑", "교통", "의료", "문화", "기타"]
 
@@ -41,12 +45,21 @@ def _parse_with_llm(text: str) -> dict:
         HumanMessage(content=text),
     ]
 
-    response = llm.invoke(messages)
+    try:
+        response = llm.invoke(messages)
+    except Exception as e:
+        raise RuntimeError(f"Solar LLM 호출 실패: {e}") from e
+
     raw = response.content.strip()
-    # 마크다운 코드블록 제거
     raw = re.sub(r"```(?:json)?\n?", "", raw).strip("` \n")
 
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error("LLM 응답 JSON 파싱 실패: %s\n원문: %s", e, raw[:200])
+        raise ValueError(
+            "OCR 결과를 파싱할 수 없습니다. 영수증 이미지가 선명한지 확인해 주세요."
+        ) from e
 
     # category 유효성 보정
     if data.get("category") not in CATEGORIES:
@@ -66,9 +79,29 @@ def _parse_with_llm(text: str) -> dict:
 
 def _analyze_sync(file_path: str) -> dict:
     """Document Parse API로 텍스트 추출 후 LLM으로 파싱 (동기)."""
-    loader = UpstageDocumentParseLoader(file_path, api_key=settings.upstage_api_key)
-    docs = loader.load()
-    combined_text = "\n".join(doc.page_content for doc in docs)
+    # 사전 검증
+    if not settings.upstage_api_key:
+        raise ValueError(
+            "UPSTAGE_API_KEY가 설정되지 않았습니다. backend/.env 파일을 확인해 주세요."
+        )
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"업로드 파일을 찾을 수 없습니다: {file_path}")
+
+    # Document Parse
+    try:
+        loader = UpstageDocumentParseLoader(file_path, api_key=settings.upstage_api_key)
+        docs = loader.load()
+    except Exception as e:
+        raise RuntimeError(f"Upstage Document Parse 호출 실패: {e}") from e
+
+    combined_text = "\n".join(doc.page_content for doc in docs).strip()
+
+    if not combined_text:
+        raise ValueError(
+            "영수증에서 텍스트를 추출할 수 없습니다. "
+            "이미지가 선명한지, 지원 형식(JPG/PNG/PDF)인지 확인해 주세요."
+        )
+
     return _parse_with_llm(combined_text)
 
 
@@ -84,6 +117,11 @@ async def analyze_receipt(file_path: str) -> dict:
             "total": float,
             "category": str,
         }
+
+    Raises:
+        ValueError: API 키 미설정, 텍스트 추출 불가, JSON 파싱 실패
+        FileNotFoundError: 파일 없음
+        RuntimeError: Upstage/LLM API 호출 오류
     """
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _analyze_sync, file_path)

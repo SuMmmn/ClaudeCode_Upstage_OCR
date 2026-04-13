@@ -60,18 +60,14 @@ export default function ExpenseList() {
           <p className="text-sm text-red-500">{error}</p>
         )}
 
-        {loading ? (
-          <div className="py-16 text-center text-sm text-gray-400">불러오는 중...</div>
-        ) : (
-          <>
-            <ReceiptTable items={data.items} onDelete={setDeleteTarget} />
-            <Pagination
-              page={page}
-              limit={data.limit}
-              total={data.total}
-              onChange={setPage}
-            />
-          </>
+        <ReceiptTable items={data.items} loading={loading} onDelete={setDeleteTarget} />
+        {!loading && (
+          <Pagination
+            page={page}
+            limit={data.limit}
+            total={data.total}
+            onChange={setPage}
+          />
         )}
       </div>
 

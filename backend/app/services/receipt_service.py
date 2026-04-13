@@ -1,11 +1,15 @@
 """영수증 CRUD 비즈니스 로직."""
 
+import logging
+import os
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.receipt import Receipt
 from app.models.receipt_item import ReceiptItem
 from app.schemas.receipt import ReceiptCreate, ReceiptUpdate
+
+logger = logging.getLogger(__name__)
 
 
 def get_receipt_or_404(db: Session, receipt_id: int) -> Receipt:
@@ -98,5 +102,15 @@ def update_receipt(db: Session, receipt_id: int, data: ReceiptUpdate) -> Receipt
 
 def delete_receipt(db: Session, receipt_id: int) -> None:
     receipt = get_receipt_or_404(db, receipt_id)
+    image_path = receipt.image_path
+
     db.delete(receipt)
     db.commit()
+
+    # DB 삭제 후 이미지 파일 동기 삭제
+    if image_path and os.path.exists(image_path):
+        try:
+            os.remove(image_path)
+        except OSError as e:
+            # 파일 삭제 실패는 경고만 기록 (DB 삭제는 이미 완료)
+            logger.warning("이미지 파일 삭제 실패: %s — %s", image_path, e)

@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Receipt, TrendingUp, Wallet } from 'lucide-react'
+import { LayoutDashboard, Receipt, TrendingUp, Upload, Wallet } from 'lucide-react'
 import MonthlyBarChart from '../components/charts/MonthlyBarChart'
 import CategoryPieChart from '../components/charts/CategoryPieChart'
+import { SkeletonCard } from '../components/common/LoadingSpinner'
+import EmptyState from '../components/common/EmptyState'
 import { useStats } from '../hooks/useStats'
 import { useReceipts } from '../hooks/useReceipts'
 import { CATEGORY_STYLES } from '../constants/categories'
@@ -53,24 +55,34 @@ export default function Dashboard() {
 
       {/* 요약 카드 3종 */}
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <SummaryCard
-          icon={Wallet}
-          label="이번 달 지출"
-          value={statsLoading ? '—' : fmtKRW(stats?.total_amount)}
-          color="bg-blue-500"
-        />
-        <SummaryCard
-          icon={Receipt}
-          label="이번 달 영수증"
-          value={statsLoading ? '—' : `${stats?.by_day?.reduce((acc, d) => acc + 1, 0) ?? 0}건`}
-          color="bg-emerald-500"
-        />
-        <SummaryCard
-          icon={TrendingUp}
-          label="주요 지출 카테고리"
-          value={statsLoading ? '—' : topCategory}
-          color="bg-purple-500"
-        />
+        {statsLoading ? (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        ) : (
+          <>
+            <SummaryCard
+              icon={Wallet}
+              label="이번 달 지출"
+              value={fmtKRW(stats?.total_amount)}
+              color="bg-blue-500"
+            />
+            <SummaryCard
+              icon={Receipt}
+              label="이번 달 영수증"
+              value={`${stats?.by_day?.length ?? 0}건`}
+              color="bg-emerald-500"
+            />
+            <SummaryCard
+              icon={TrendingUp}
+              label="주요 지출 카테고리"
+              value={topCategory}
+              color="bg-purple-500"
+            />
+          </>
+        )}
       </div>
 
       {/* 차트 영역 */}
@@ -98,7 +110,11 @@ export default function Dashboard() {
         </div>
 
         {recentLoading ? (
-          <p className="py-8 text-center text-sm text-gray-400">불러오는 중...</p>
+          <div className="space-y-3 py-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-10 animate-pulse rounded-lg bg-gray-100" />
+            ))}
+          </div>
         ) : recent?.items?.length > 0 ? (
           <ul className="divide-y divide-gray-50">
             {recent.items.map((r) => (
@@ -125,15 +141,19 @@ export default function Dashboard() {
             ))}
           </ul>
         ) : (
-          <div className="py-12 text-center">
-            <p className="text-sm text-gray-400">등록된 영수증이 없습니다.</p>
-            <button
-              onClick={() => navigate('/upload')}
-              className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              첫 영수증 업로드하기
-            </button>
-          </div>
+          <EmptyState
+            icon={Upload}
+            title="등록된 영수증이 없습니다."
+            description="첫 번째 영수증을 업로드해 보세요."
+            action={
+              <button
+                onClick={() => navigate('/upload')}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                영수증 업로드하기
+              </button>
+            }
+          />
         )}
       </div>
     </div>
